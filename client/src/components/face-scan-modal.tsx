@@ -20,8 +20,12 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
   const [scanComplete, setScanComplete] = useState(false);
   const [status, setStatus] = useState("Click 'Start Scan' to begin");
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [faceBox, setFaceBox] = useState<{x: number, y: number, width: number, height: number} | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -90,6 +94,128 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+      detectionIntervalRef.current = null;
+    }
+    setFaceDetected(false);
+    setFaceBox(null);
+  };
+
+  const startFaceDetection = async () => {
+    if (!videoRef.current || !overlayCanvasRef.current) return;
+    
+    const video = videoRef.current;
+    const overlayCanvas = overlayCanvasRef.current;
+    const ctx = overlayCanvas.getContext('2d');
+    
+    if (!ctx) return;
+    
+    // Set canvas size to match video
+    overlayCanvas.width = video.videoWidth || 640;
+    overlayCanvas.height = video.videoHeight || 480;
+    
+    detectionIntervalRef.current = setInterval(async () => {
+      if (!video || video.readyState !== 4) return;
+      
+      try {
+        // Import face-api dynamically to detect faces
+        const faceapi = await import('face-api.js');
+        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+        
+        // Clear previous drawings
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        
+        if (detections.length > 0) {
+          const detection = detections[0];
+          const box = detection.box;
+          
+          setFaceDetected(true);
+          setFaceBox({ x: box.x, y: box.y, width: box.width, height: box.height });
+          
+          // Draw face detection box with scanning animation
+          drawFaceOverlay(ctx, box);
+        } else {
+          setFaceDetected(false);
+          setFaceBox(null);
+        }
+      } catch (error) {
+        console.log('Face detection not ready yet');
+      }
+    }, 100); // Update 10 times per second
+  };
+  
+  const drawFaceOverlay = (ctx: CanvasRenderingContext2D, box: any) => {
+    const time = Date.now();
+    
+    // Draw face border
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(box.x, box.y, box.width, box.height);
+    
+    // Draw corner markers
+    const cornerLength = 20;
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 3;
+    
+    // Top-left corner
+    ctx.beginPath();
+    ctx.moveTo(box.x, box.y + cornerLength);
+    ctx.lineTo(box.x, box.y);
+    ctx.lineTo(box.x + cornerLength, box.y);
+    ctx.stroke();
+    
+    // Top-right corner
+    ctx.beginPath();
+    ctx.moveTo(box.x + box.width - cornerLength, box.y);
+    ctx.lineTo(box.x + box.width, box.y);
+    ctx.lineTo(box.x + box.width, box.y + cornerLength);
+    ctx.stroke();
+    
+    // Bottom-left corner
+    ctx.beginPath();
+    ctx.moveTo(box.x, box.y + box.height - cornerLength);
+    ctx.lineTo(box.x, box.y + box.height);
+    ctx.lineTo(box.x + cornerLength, box.y + box.height);
+    ctx.stroke();
+    
+    // Bottom-right corner
+    ctx.beginPath();
+    ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
+    ctx.lineTo(box.x + box.width, box.y + box.height);
+    ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
+    ctx.stroke();
+    
+    // Draw scanning line
+    const scanProgress = ((time / 50) % 100) / 100; // Move every 50ms
+    const scanY = box.y + (box.height * scanProgress);
+    
+    ctx.strokeStyle = '#00ffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(box.x, scanY);
+    ctx.lineTo(box.x + box.width, scanY);
+    ctx.stroke();
+    
+    // Draw detection dots around the face
+    ctx.fillStyle = '#00ff00';
+    const dotPositions = [
+      { x: box.x + box.width * 0.2, y: box.y + box.height * 0.3 }, // Left eye area
+      { x: box.x + box.width * 0.8, y: box.y + box.height * 0.3 }, // Right eye area
+      { x: box.x + box.width * 0.5, y: box.y + box.height * 0.5 }, // Nose area
+      { x: box.x + box.width * 0.5, y: box.y + box.height * 0.7 }, // Mouth area
+      { x: box.x + box.width * 0.3, y: box.y + box.height * 0.8 }, // Left mouth corner
+      { x: box.x + box.width * 0.7, y: box.y + box.height * 0.8 }, // Right mouth corner
+    ];
+    
+    dotPositions.forEach((dot, index) => {
+      const pulseOffset = (time / 200 + index * 0.5) % (Math.PI * 2);
+      const radius = 3 + Math.sin(pulseOffset) * 1;
+      
+      ctx.beginPath();
+      ctx.arc(dot.x, dot.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
   };
 
   const resetScan = () => {
@@ -112,6 +238,9 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
     setIsScanning(true);
     setStatus("Detecting face...");
     
+    // Start face detection overlay
+    await startFaceDetection();
+    
     try {
       // Start countdown
       const scanInterval = setInterval(() => {
@@ -130,6 +259,10 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
       console.error("Error starting scan:", error);
       setIsScanning(false);
       setStatus("Scan failed. Please try again.");
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+        detectionIntervalRef.current = null;
+      }
     }
   };
 
@@ -199,7 +332,7 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
         <div className="space-y-6">
           {/* Camera Preview */}
           <div className="relative">
-            <div className="w-64 h-64 bg-gray-200 dark:bg-gray-700 rounded-xl mx-auto overflow-hidden">
+            <div className="w-64 h-64 bg-gray-200 dark:bg-gray-700 rounded-xl mx-auto overflow-hidden relative">
               <video
                 ref={videoRef}
                 autoPlay
@@ -207,12 +340,33 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
                 muted
                 className="w-full h-full object-cover"
               />
+              
+              {/* Face Detection Overlay Canvas */}
+              <canvas 
+                ref={overlayCanvasRef}
+                className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                style={{ mixBlendMode: 'screen' }}
+              />
+              
               <canvas ref={canvasRef} className="hidden" />
               
-              {/* Scanning Animation */}
+              {/* Face Detection Status */}
               {isScanning && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="scan-circle w-32 h-32 rounded-full"></div>
+                <div className="absolute top-2 right-2">
+                  <div className={`px-2 py-1 rounded text-xs font-medium ${
+                    faceDetected 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-yellow-500 text-black'
+                  }`}>
+                    {faceDetected ? 'Face Detected' : 'Looking for face...'}
+                  </div>
+                </div>
+              )}
+              
+              {/* Scanning Grid Animation */}
+              {isScanning && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="scanning-grid"></div>
                 </div>
               )}
             </div>

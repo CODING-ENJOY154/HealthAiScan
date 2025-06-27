@@ -9,22 +9,79 @@ interface HealthMetricsGridProps {
 
 export default function HealthMetricsGrid({ report }: HealthMetricsGridProps) {
   if (!report) {
+    const placeholderMetrics = [
+      {
+        icon: Heart,
+        title: "Heart Rate",
+        description: "Monitor your heart health",
+        iconBg: "bg-red-100 dark:bg-red-900/20",
+        iconColor: "text-red-500",
+        action: "Complete a scan to view"
+      },
+      {
+        icon: Activity,
+        title: "Oxygen Level",
+        description: "Track blood oxygen saturation",
+        iconBg: "bg-blue-100 dark:bg-blue-900/20",
+        iconColor: "text-blue-500",
+        action: "Complete a scan to view"
+      },
+      {
+        icon: Droplets,
+        title: "Blood Sugar",
+        description: "Monitor glucose levels",
+        iconBg: "bg-yellow-100 dark:bg-yellow-900/20",
+        iconColor: "text-yellow-500",
+        action: "Complete a scan to view"
+      },
+      {
+        icon: Brain,
+        title: "Stress Level",
+        description: "Analyze mental wellness",
+        iconBg: "bg-purple-100 dark:bg-purple-900/20",
+        iconColor: "text-purple-500",
+        action: "Complete a scan to view"
+      },
+      {
+        icon: Battery,
+        title: "Energy Level",
+        description: "Track vitality and alertness",
+        iconBg: "bg-green-100 dark:bg-green-900/20",
+        iconColor: "text-green-500",
+        action: "Complete a scan to view"
+      },
+      {
+        icon: Smile,
+        title: "Mood Analysis",
+        description: "AI-powered emotion detection",
+        iconBg: "bg-indigo-100 dark:bg-indigo-900/20",
+        iconColor: "text-indigo-500",
+        action: "Complete a scan to view"
+      }
+    ];
+
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i} className="health-card">
+        {placeholderMetrics.map((metric, i) => (
+          <Card key={i} className="health-card hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                    <div className="w-5 h-5 bg-gray-300 dark:bg-gray-600 rounded"></div>
+                  <div className={`w-10 h-10 ${metric.iconBg} rounded-lg flex items-center justify-center`}>
+                    <metric.icon className={`${metric.iconColor} h-5 w-5`} />
                   </div>
-                  <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{metric.title}</h3>
                 </div>
-                <div className="w-16 h-6 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+                <Badge variant="outline" className="text-xs">
+                  Waiting
+                </Badge>
               </div>
-              <div className="w-12 h-8 bg-gray-300 dark:bg-gray-600 rounded mb-1"></div>
-              <div className="w-8 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                {metric.description}
+              </div>
+              <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                {metric.action}
+              </div>
             </CardContent>
           </Card>
         ))}
