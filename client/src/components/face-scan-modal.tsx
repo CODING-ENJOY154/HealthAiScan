@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Camera, X, CheckCircle } from "lucide-react";
-import { detectFaceAndEmotion } from "@/lib/face-detection";
+import { detectFaceAndEmotion, initializeFaceAPI } from "@/lib/face-detection";
 import { generateHealthMetrics } from "@/lib/health-utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +56,7 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
   useEffect(() => {
     if (isOpen) {
       initializeCamera();
+      initializeFaceAPI();
     } else {
       cleanup();
     }
@@ -111,11 +112,9 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
     setIsScanning(true);
     setStatus("Detecting face...");
     
-    let scanInterval: NodeJS.Timeout;
-    
     try {
       // Start countdown
-      scanInterval = setInterval(() => {
+      const scanInterval = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
             clearInterval(scanInterval);
@@ -131,7 +130,6 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
       console.error("Error starting scan:", error);
       setIsScanning(false);
       setStatus("Scan failed. Please try again.");
-      clearInterval(scanInterval);
     }
   };
 
