@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,12 +7,13 @@ import HealthMetricsGrid from "./health-metrics-grid";
 import HealthTrendsChart from "./health-trends-chart";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { generateQRCode } from "@/lib/qr-generator";
-import { readReportAloud } from "@/lib/voice-assistant";
-import { Download, Mail, QrCode, Volume2, Trophy, Leaf, Target } from "lucide-react";
+import { readReportAloud, stopSpeech, isSpeechActive } from "@/lib/voice-assistant";
+import { Download, Mail, QrCode, Volume2, VolumeX, Trophy, Leaf, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function HealthDashboard() {
   const { toast } = useToast();
+  const [isReading, setIsReading] = useState(false);
 
   const { data: latestReport } = useQuery({
     queryKey: ["/api/health-reports/latest"],
@@ -117,8 +119,27 @@ export default function HealthDashboard() {
       return;
     }
 
-    readReportAloud(latestReport);
+    if (isReading) {
+      stopSpeech();
+      setIsReading(false);
+    } else {
+      readReportAloud(latestReport);
+      setIsReading(true);
+    }
   };
+
+  // Monitor speech status
+  useEffect(() => {
+    const checkSpeechStatus = () => {
+      const speechActive = isSpeechActive();
+      if (!speechActive && isReading) {
+        setIsReading(false);
+      }
+    };
+    
+    const interval = setInterval(checkSpeechStatus, 500);
+    return () => clearInterval(interval);
+  }, [isReading]);
 
   const getWellnessLevel = (score: number) => {
     if (score >= 80) return { level: "Excellent", color: "text-green-600" };
@@ -308,8 +329,12 @@ export default function HealthDashboard() {
               className="flex items-center space-x-2 h-auto p-4 justify-start"
               onClick={handleReadAloud}
             >
-              <Volume2 className="text-orange-500 h-5 w-5" />
-              <span>Read Aloud</span>
+              {isReading ? (
+                <VolumeX className="text-red-500 h-5 w-5" />
+              ) : (
+                <Volume2 className="text-orange-500 h-5 w-5" />
+              )}
+              <span>{isReading ? "Stop Reading" : "Read Aloud"}</span>
             </Button>
           </div>
         </CardContent>

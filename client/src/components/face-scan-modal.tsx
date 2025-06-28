@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Camera, X, CheckCircle } from "lucide-react";
+import { Camera, X, CheckCircle, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { detectFaceAndEmotion, initializeFaceAPI } from "@/lib/face-detection";
 import { generateHealthMetrics } from "@/lib/health-utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -22,6 +23,9 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [faceBox, setFaceBox] = useState<{x: number, y: number, width: number, height: number} | null>(null);
+  const [faceDetectionError, setFaceDetectionError] = useState<string | null>(null);
+  const [noFaceCount, setNoFaceCount] = useState(0);
+  const [faceQualityIssue, setFaceQualityIssue] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -100,6 +104,9 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
     }
     setFaceDetected(false);
     setFaceBox(null);
+    setFaceDetectionError(null);
+    setNoFaceCount(0);
+    setFaceQualityIssue(false);
   };
 
   const startFaceDetection = async () => {
@@ -130,7 +137,22 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
           const detection = detections[0];
           const box = detection.box;
           
-          setFaceDetected(true);
+          // Check face quality (too small might indicate distance/obstruction)
+          const faceArea = box.width * box.height;
+          const videoArea = overlayCanvas.width * overlayCanvas.height;
+          const faceRatio = faceArea / videoArea;
+          
+          if (faceRatio < 0.02) { // Face too small/far
+            setFaceQualityIssue(true);
+            setFaceDetectionError("Face not recognized, try again");
+            setNoFaceCount(prev => prev + 1);
+          } else {
+            setFaceDetected(true);
+            setFaceQualityIssue(false);
+            setFaceDetectionError(null);
+            setNoFaceCount(0);
+          }
+          
           setFaceBox({ x: box.x, y: box.y, width: box.width, height: box.height });
           
           // Draw face detection box with scanning animation
@@ -138,6 +160,12 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
         } else {
           setFaceDetected(false);
           setFaceBox(null);
+          setNoFaceCount(prev => prev + 1);
+          
+          // Show error if no face detected for too long
+          if (noFaceCount >= 20) { // 2 seconds at 10 fps
+            setFaceDetectionError("Face not detected");
+          }
         }
       } catch (error) {
         console.log('Face detection not ready yet');
@@ -330,6 +358,21 @@ export default function FaceScanModal({ isOpen, onClose }: FaceScanModalProps) {
         </DialogHeader>
         
         <div className="space-y-6">
+          {/* Face Detection Error Alert */}
+          {faceDetectionError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {faceDetectionError}
+                {faceDetectionError.includes("not recognized") && (
+                  <span className="block mt-1 text-sm">
+                    Please remove glasses, hat, or move closer to the camera
+                  </span>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Camera Preview */}
           <div className="relative">
             <div className="w-64 h-64 bg-gray-200 dark:bg-gray-700 rounded-xl mx-auto overflow-hidden relative">

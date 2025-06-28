@@ -28,7 +28,7 @@ export default function AuthPage() {
     
     if (isLogin) {
       loginMutation.mutate({
-        username: formData.email, // using email as username for compatibility
+        email: formData.email,
         password: formData.password,
       });
     } else {

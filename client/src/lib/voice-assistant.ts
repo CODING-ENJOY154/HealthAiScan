@@ -1,5 +1,12 @@
 import type { HealthReport } from "@shared/schema";
 
+// Global state to track speech status
+let isReading = false;
+
+export function isSpeechActive(): boolean {
+  return isReading;
+}
+
 export function readReportAloud(report: HealthReport): void {
   if (!('speechSynthesis' in window)) {
     console.error("Speech synthesis not supported in this browser");
@@ -29,14 +36,17 @@ export function readReportAloud(report: HealthReport): void {
   }
 
   utterance.onstart = () => {
+    isReading = true;
     console.log("Starting to read health report");
   };
   
   utterance.onend = () => {
+    isReading = false;
     console.log("Finished reading health report");
   };
   
   utterance.onerror = (event) => {
+    isReading = false;
     console.error("Speech synthesis error:", event.error);
   };
 
@@ -117,6 +127,7 @@ function getHealthAdvice(report: HealthReport): string {
 export function stopSpeech(): void {
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
+    isReading = false;
   }
 }
 
